@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>График смен — управление сотрудниками</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+</head>
+<body>
+    <div id="app">
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-inner">
+                <div class="logo clean-logo">
+                    <div class="logo-icon"><i class="fa-solid fa-calendar-check"></i></div>
+                    <div class="logo-text">
+                        <h2>График смен</h2>
+                        <span>Сотрудники и эвакуация</span>
+                    </div>
+                </div>
+
+                <nav class="nav-menu clean-nav">
+                    <div class="nav-section-label">Работа</div>
+                    <button class="nav-item active" data-tab="dashboard">
+                        <i class="fa-solid fa-house"></i>
+                        <span>Сегодня</span>
+                        <span class="nav-badge"></span>
+                    </button>
+                    <button class="nav-item" data-tab="schedule">
+                        <i class="fa-solid fa-table-cells-large"></i>
+                        <span>График</span>
+                        <span class="nav-badge" id="navScheduleCount">0</span>
+                    </button>
+                    <button class="nav-item" data-tab="employees">
+                        <i class="fa-solid fa-users"></i>
+                        <span>Сотрудники</span>
+                        <span class="nav-badge" id="navEmployeeCount">0</span>
+                    </button>
+                    <button class="nav-item" data-tab="shifts">
+                        <i class="fa-solid fa-user-check"></i>
+                        <span>Факт смены</span>
+                        <span class="nav-badge" id="navShiftCount">0</span>
+                    </button>
+
+                    <div class="nav-section-label nav-section-settings">Настройки</div>
+                    <button class="nav-item" data-tab="positions">
+                        <i class="fa-solid fa-briefcase"></i>
+                        <span>Должности</span>
+                    </button>
+                    <button class="nav-item" data-tab="backup">
+                        <i class="fa-solid fa-database"></i>
+                        <span>Данные и резерв</span>
+                    </button>
+                </nav>
+
+                <div class="sidebar-footer">
+                    <button class="theme-toggle" id="themeToggle" title="Переключить тему">
+                        <i class="fa-solid fa-moon"></i>
+                        <span class="theme-label">Тёмная тема</span>
+                        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN -->
+        <main class="main">
+
+            <!-- DASHBOARD -->
+            <section id="tab-dashboard" class="tab active">
+                <div class="page-header clean-page-header">
+                    <div>
+                        <span class="eyebrow">Оперативная сводка</span>
+                        <h1>Сегодня</h1>
+                        <p class="subtitle" id="dashboardDateText">Кто должен работать и кто фактически на месте</p>
+                    </div>
+                    <div class="header-actions clean-header-actions">
+                        <button class="btn btn-primary" onclick="switchTab('schedule')">
+                            <i class="fa-solid fa-table-cells-large"></i> Открыть график
+                        </button>
+                    </div>
+                </div>
+
+                <div class="stats-grid clean-stats-grid">
+                    <div class="stat-card stat-blue clean-stat-card">
+                        <div class="stat-info"><span class="stat-label">Сотрудников</span><h2 id="statEmployees">0</h2></div>
+                        <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
+                    </div>
+                    <div class="stat-card stat-green clean-stat-card">
+                        <div class="stat-info"><span class="stat-label">На месте</span><h2 id="statPresent">0</h2></div>
+                        <div class="stat-icon"><i class="fa-solid fa-user-check"></i></div>
+                    </div>
+                    <div class="stat-card stat-red clean-stat-card">
+                        <div class="stat-info"><span class="stat-label">Не отмечены</span><h2 id="statAbsent">0</h2></div>
+                        <div class="stat-icon"><i class="fa-solid fa-user-clock"></i></div>
+                    </div>
+                    <div class="stat-card stat-orange clean-stat-card clean-stat-secondary">
+                        <div class="stat-info"><span class="stat-label">Сохранённых смен</span><h2 id="statShifts">0</h2></div>
+                        <div class="stat-icon"><i class="fa-solid fa-calendar-days"></i></div>
+                    </div>
+                </div>
+
+                <div class="dashboard-primary-grid">
+                    <div class="panel dashboard-schedule-panel primary-panel" id="dashboardSchedulePanel">
+                        <div class="panel-header">
+                            <div>
+                                <span class="panel-kicker">План на день</span>
+                                <h3>Сегодня по графику</h3>
+                            </div>
+                            <button class="btn btn-ghost btn-sm" onclick="switchTab('schedule')">Подробнее <i class="fa-solid fa-arrow-right"></i></button>
+                        </div>
+                        <div id="dashboardScheduleSummary" class="dashboard-schedule-summary">
+                            <span class="empty-text">График на текущий месяц ещё не создан</span>
+                        </div>
+                    </div>
+
+                    <div class="panel dashboard-quick-panel">
+                        <div class="panel-header"><div><span class="panel-kicker">Быстрые действия</span><h3>Что нужно сделать?</h3></div></div>
+                        <div class="dashboard-action-list">
+                            <button class="dashboard-action" onclick="switchTab('schedule')"><i class="fa-solid fa-pen-to-square"></i><span><strong>Изменить график</strong><small>Смены, отпуска, больничные</small></span><i class="fa-solid fa-chevron-right"></i></button>
+                            <button class="dashboard-action" onclick="switchTab('employees')"><i class="fa-solid fa-user-plus"></i><span><strong>Добавить сотрудника</strong><small>ФИО, должность, телефон</small></span><i class="fa-solid fa-chevron-right"></i></button>
+                            <button class="dashboard-action" onclick="switchTab('shifts')"><i class="fa-solid fa-clipboard-check"></i><span><strong>Отметить факт</strong><small>Кто реально находится на месте</small></span><i class="fa-solid fa-chevron-right"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                <details class="clean-details dashboard-history-details">
+                    <summary><span><i class="fa-solid fa-clock-rotate-left"></i> Последние смены</span><i class="fa-solid fa-chevron-down"></i></summary>
+                    <div class="details-content"><div id="recentShifts" class="recent-list"></div></div>
+                </details>
+            </section>
+
+            <!-- EMPLOYEES -->
+            <section id="tab-employees" class="tab">
+                <div class="page-header">
+                    <div>
+                        <h1>Сотрудники</h1>
+                        <p class="subtitle">Управление базой сотрудников</p>
+                    </div>
+                    <div class="header-actions">
+                        <span class="badge-count" id="employeeTotalCount">0 чел.</span>
+                    </div>
+                </div>
+
+                <details class="clean-details employee-add-details">
+                    <summary><span><i class="fa-solid fa-user-plus"></i> Добавить сотрудника</span><i class="fa-solid fa-chevron-down"></i></summary>
+                    <div class="details-content">
+                    <form id="addEmployeeForm" class="form-grid">
+                        <div class="form-group">
+                            <label>ФИО <span class="required">*</span></label>
+                            <input type="text" id="empName" placeholder="Иванов Иван Иванович" required />
+                        </div>
+                        <div class="form-group">
+                            <label>Должность</label>
+                            <select id="empPosition"><option value="">-- Без должности --</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Телефон <span class="required">*</span></label>
+                            <input type="tel" id="empPhone" placeholder="+7 999 999-99-99" required />
+                        </div>
+                        <div class="form-group">
+                            <label>Родственник</label>
+                            <input type="text" id="empRelName" placeholder="Петрова Мария Ивановна" />
+                        </div>
+                        <div class="form-group">
+                            <label>Телефон родственника</label>
+                            <input type="tel" id="empRelPhone" placeholder="+7 999 888-77-66" />
+                        </div>
+                        <div class="form-group form-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fa-solid fa-plus"></i> Добавить
+                            </button>
+                        </div>
+                    </form>
+                    </div>
+                </details>
+
+                <div class="panel clean-list-panel">
+                    <div class="search-bar">
+                        <div class="search-input">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="empSearch" placeholder="Поиск по ФИО, телефону, должности..." />
+                        </div>
+                        <select id="empFilterPosition" class="filter-select">
+                            <option value="">Все должности</option>
+                        </select>
+                    </div>
+                    <div id="employeeList" class="employee-grid"></div>
+                </div>
+            </section>
+
+            <!-- POSITIONS -->
+            <section id="tab-positions" class="tab">
+                <div class="page-header">
+                    <div>
+                        <h1>Должности</h1>
+                        <p class="subtitle">Группы сотрудников и доступные для них смены</p>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3><i class="fa-solid fa-plus"></i> Добавить должность</h3>
+                    </div>
+                    <div class="form-row-inline">
+                        <div class="form-group">
+                            <label>Название</label>
+                            <input type="text" id="posName" placeholder="Например: КТЗ" />
+                        </div>
+                        <div class="form-group">
+                            <label>Графики (через запятую)</label>
+                            <input type="text" id="posSchedules" placeholder="08:00-20:00, 20:00-08:00" />
+                        </div>
+                        <button class="btn btn-primary" id="addPositionBtn">
+                            <i class="fa-solid fa-plus"></i> Добавить
+                        </button>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div id="positionList" class="position-grid"></div>
+                </div>
+            </section>
+
+            <!-- MONTHLY SCHEDULE -->
+            <section id="tab-schedule" class="tab">
+                <div class="page-header clean-page-header schedule-page-header">
+                    <div>
+                        <span class="eyebrow">Планирование</span>
+                        <h1>График работы</h1>
+                        <p class="subtitle">Составляйте месяц, меняйте смены и сразу видьте нехватку людей</p>
+                    </div>
+                    <div class="header-actions schedule-header-main-actions">
+                        <span class="badge-count" id="scheduleMonthBadge">Нет графика</span>
+                        <button class="btn btn-primary" id="scheduleCycleBtn"><i class="fa-solid fa-repeat"></i> Заполнить по циклу</button>
+                    </div>
+                </div>
+
+                <div class="schedule-command-card">
+                    <div class="schedule-command-main">
+                        <div class="form-group compact-field schedule-month-main-field">
+                            <label>Открытый месяц</label>
+                            <select id="scheduleMonthSelect"><option value="">-- Нет графиков --</option></select>
+                        </div>
+                        <button class="btn btn-outline" id="scheduleAbsenceRangeBtn"><i class="fa-solid fa-calendar-minus"></i> Отпуск / больничный</button>
+                        <button class="btn btn-outline" id="scheduleValidateBtn"><i class="fa-solid fa-circle-check"></i> Проверить</button>
+                        <div class="schedule-command-spacer"></div>
+                        <button class="icon-btn" id="scheduleUndoBtn" title="Отменить (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
+                        <button class="icon-btn" id="scheduleRedoBtn" title="Вернуть (Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
+                        <button class="btn btn-ghost" type="button" onclick="document.getElementById('scheduleSetupDetails').toggleAttribute('open')"><i class="fa-solid fa-ellipsis"></i> Ещё</button>
+                    </div>
+
+                    <details class="schedule-setup-details" id="scheduleSetupDetails">
+                        <summary>Создание, импорт и настройки</summary>
+                        <div class="schedule-setup-grid">
+                            <div class="schedule-setup-block">
+                                <h4>Создать новый месяц</h4>
+                                <div class="form-row-inline schedule-manual-create-row">
+                                    <div class="form-group"><label>Месяц</label><input type="month" id="scheduleManualMonth" /></div>
+                                    <button class="btn btn-primary" id="scheduleCreateManualBtn"><i class="fa-solid fa-plus"></i> Создать</button>
+                                    <button class="btn btn-outline" id="scheduleCopyMonthBtn"><i class="fa-solid fa-clone"></i> Копировать текущий</button>
+                                </div>
+                            </div>
+                            <div class="schedule-setup-block">
+                                <h4>Данные графика</h4>
+                                <div class="schedule-setup-actions">
+                                    <button class="btn btn-outline" id="scheduleSyncEmployeesBtn"><i class="fa-solid fa-users-gear"></i> Синхронизировать сотрудников</button>
+                                    <div class="upload-area compact-upload"><input type="file" id="scheduleFileInput" accept=".xlsx,.xls" /><button class="btn btn-outline" id="scheduleImportBtn"><i class="fa-solid fa-file-import"></i> Импорт Excel</button></div>
+                                    <button class="btn btn-danger btn-sm" id="scheduleDeleteMonthBtn"><i class="fa-solid fa-trash"></i> Удалить месяц</button>
+                                </div>
+                                <div id="scheduleImportInfo" class="schedule-import-info"></div>
+                            </div>
+                            <div class="schedule-setup-block">
+                                <h4>Настройки</h4>
+                                <div class="schedule-setup-actions">
+                                    <button class="btn btn-outline" id="scheduleEditShiftsBtn"><i class="fa-solid fa-clock"></i> Смены</button>
+                                    <button class="btn btn-outline" id="scheduleEditColorsBtn"><i class="fa-solid fa-palette"></i> Цвета</button>
+                                    <button class="btn btn-outline" id="scheduleNormsBtn"><i class="fa-solid fa-sliders"></i> Нормативы</button>
+                                    <button class="btn btn-outline" id="scheduleApplyTemplatesBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> Шаблоны</button>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <div class="panel schedule-editor-panel">
+                    <div class="panel-header schedule-editor-header">
+                        <div>
+                            <h3><i class="fa-solid fa-table-cells"></i> Редактор месячного графика</h3>
+                            <span class="hint-text">Должности идут отдельными блоками. Ячейки редактируются прямо в таблице.</span>
+                        </div>
+                        <div class="schedule-editor-head-right">
+                            <div class="schedule-grid-search-wrap compact-grid-search">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" id="scheduleGridSearch" placeholder="Найти сотрудника…" />
+                                <button class="icon-btn" id="scheduleGridSearchBtn" title="Найти"><i class="fa-solid fa-arrow-right"></i></button>
+                            </div>
+                            <div id="scheduleLegend" class="schedule-legend"></div>
+                        </div>
+                    </div>
+                    <div class="schedule-smart-hint">
+                        <i class="fa-brands fa-google-drive"></i>
+                        <span><strong>Google Таблицы:</strong> скопируйте диапазон → выберите первую ячейку → Ctrl+V</span>
+                        <button class="hint-link" type="button" onclick="this.closest('.schedule-smart-hint').classList.toggle('expanded')">Подсказки</button>
+                        <div class="schedule-smart-hint-more">
+                            Выделение мышью · Ctrl+C / Ctrl+V · Ctrl+Z / Ctrl+Y · двойной клик для подробного редактирования · двойной клик по норме часов для индивидуальной нормы.
+                        </div>
+                    </div>
+
+                    <div class="schedule-validation-panel" id="scheduleValidationPanel" style="display:none;"></div>
+
+                    <div class="schedule-selection-bar" id="scheduleSelectionBar">
+                        <div class="schedule-selection-info">
+                            <i class="fa-solid fa-object-group"></i>
+                            <div>
+                                <strong id="scheduleSelectionCount">0 ячеек</strong>
+                                <span id="scheduleSelectionDetails">Выделите ячейки мышкой</span>
+                            </div>
+                        </div>
+                        <div class="schedule-selection-actions">
+                            <select id="scheduleBulkShiftSelect" class="schedule-bulk-shift-select">
+                                <option value="">Выберите смену…</option>
+                            </select>
+                            <button class="btn btn-primary btn-sm" id="scheduleBulkApplyShiftBtn">
+                                <i class="fa-solid fa-clock"></i> Применить смену
+                            </button>
+                            <button class="btn btn-outline btn-sm schedule-bulk-code" id="scheduleBulkOffBtn" title="Выходной">В</button>
+                            <button class="btn btn-outline btn-sm schedule-bulk-code" id="scheduleBulkVacationBtn" title="Отпуск">ОТ</button>
+                            <button class="btn btn-outline btn-sm schedule-bulk-code" id="scheduleBulkSickBtn" title="Больничный">Б</button>
+                            <button class="btn btn-outline btn-sm" id="scheduleBulkMoreBtn">
+                                <i class="fa-solid fa-sliders"></i> Другие…
+                            </button>
+                            <button class="btn btn-outline btn-sm" id="scheduleBulkClearBtn" title="Очистить выбранные ячейки">
+                                <i class="fa-solid fa-eraser"></i> Очистить
+                            </button>
+                            <button class="btn btn-ghost btn-sm" id="scheduleClearSelectionBtn" title="Снять выделение">
+                                <i class="fa-solid fa-xmark"></i> Снять
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="schedule-month-table-wrap" id="scheduleMonthTableWrap"></div>
+                    <div class="schedule-coverage-summary" id="scheduleCoverageSummary"></div>
+                </div>
+
+                <div class="panel schedule-day-panel">
+                    <div class="schedule-toolbar">
+                        <div class="form-group schedule-date-group">
+                            <label>Дата списка</label>
+                            <input type="date" id="scheduleDate" />
+                        </div>
+                        <button class="btn btn-outline btn-sm" id="scheduleTodayBtn">
+                            <i class="fa-solid fa-calendar-day"></i> Сегодня
+                        </button>
+                        <div class="schedule-toolbar-spacer"></div>
+                        <button class="btn btn-primary" id="scheduleCreateShiftBtn">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Создать смену из графика
+                        </button>
+                        <button class="btn btn-success" id="scheduleExportBtn">
+                            <i class="fa-solid fa-file-excel"></i> Excel
+                        </button>
+                        <button class="btn btn-outline" id="schedulePrintBtn">
+                            <i class="fa-solid fa-print"></i> Печать
+                        </button>
+                    </div>
+
+                    <div class="schedule-stats schedule-stats-pro" id="scheduleStats">
+                        <div class="schedule-stat"><span>Всего в графике</span><strong id="scheduleStatTotal">0</strong></div>
+                        <div class="schedule-stat work"><span>По плану работают</span><strong id="scheduleStatWorking">0</strong></div>
+                        <div class="schedule-stat now"><span>Сейчас по времени</span><strong id="scheduleStatNow">0</strong></div>
+                        <div class="schedule-stat absent"><span>Не работают / прочее</span><strong id="scheduleStatAbsent">0</strong></div>
+                        <div class="schedule-stat present"><span>Фактически на месте</span><strong id="scheduleStatPresent">—</strong></div>
+                        <div class="schedule-stat missing"><span>По плану, не отмечены</span><strong id="scheduleStatMissing">—</strong></div>
+                    </div>
+
+                    <div class="filter-sort-bar schedule-filter-bar">
+                        <div class="filter-group">
+                            <div class="filter-item schedule-search">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" id="scheduleSearch" placeholder="ФИО или должность..." />
+                            </div>
+                            <div class="filter-item">
+                                <i class="fa-solid fa-briefcase"></i>
+                                <select id="schedulePositionFilter"><option value="">Все должности</option></select>
+                            </div>
+                            <div class="filter-item">
+                                <i class="fa-solid fa-filter"></i>
+                                <select id="scheduleStatusFilter">
+                                    <option value="working">Работают в этот день</option>
+                                    <option value="now">Сейчас на работе</option>
+                                    <option value="all">Все сотрудники</option>
+                                    <option value="off">Не работают / прочее</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="filter-actions">
+                            <span class="filter-count" id="scheduleFilteredCount">Показано: 0</span>
+                        </div>
+                    </div>
+
+                    <div class="table-wrap schedule-list-wrap">
+                        <table class="shift-table schedule-day-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>ФИО</th>
+                                    <th>Должность</th>
+                                    <th>Телефон</th>
+                                    <th>Значение</th>
+                                    <th>Время</th>
+                                    <th>Статус</th>
+                                    <th>Факт</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scheduleDayBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SHIFTS -->
+            <section id="tab-shifts" class="tab">
+                <div class="page-header">
+                    <div>
+                        <h1>Факт смены</h1>
+                        <p class="subtitle">Отмечайте, кто реально находится на месте</p>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3><i class="fa-solid fa-calendar-plus"></i> Создать смену</h3>
+                    </div>
+                    <div class="shift-create-row">
+                        <div class="form-group">
+                            <label>Дата</label>
+                            <input type="date" id="shiftDate" />
+                        </div>
+                        <div class="form-group">
+                            <label>Название</label>
+                            <input type="text" id="shiftName" placeholder="Основная" value="Основная" />
+                        </div>
+                        <div class="form-group">
+                            <label>Копировать из</label>
+                            <select id="copyFromShift"><option value="">-- Выберите --</option></select>
+                        </div>
+                        <div class="form-group form-actions" style="flex-direction:row;gap:8px;">
+                            <button class="btn btn-success" id="createShiftBtn">
+                                <i class="fa-solid fa-plus"></i> Создать
+                            </button>
+                            <button class="btn btn-outline" id="copyShiftBtn" title="Копировать сотрудников">
+                                <i class="fa-solid fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="shifts-tabs" id="shiftsList"></div>
+                </div>
+
+                <div class="panel" id="shiftEditor">
+                    <div class="shift-editor-header">
+                        <div class="shift-info" id="shiftDisplay">
+                            <span class="shift-placeholder">Выберите смену</span>
+                        </div>
+                        <div class="shift-editor-actions">
+                            <button class="btn btn-outline btn-sm" id="clearShiftBtn">
+                                <i class="fa-solid fa-eraser"></i> Очистить
+                            </button>
+                            <button class="btn btn-danger btn-sm" id="deleteShiftBtn">
+                                <i class="fa-solid fa-trash"></i> Удалить
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filters & Sort -->
+                    <div class="filter-sort-bar">
+                        <div class="filter-group">
+                            <div class="filter-item">
+                                <i class="fa-solid fa-clock"></i>
+                                <select id="filterTime"><option value="">Все время</option></select>
+                            </div>
+                            <div class="filter-item">
+                                <i class="fa-solid fa-briefcase"></i>
+                                <select id="filterPosition"><option value="">Все должности</option></select>
+                            </div>
+                            <div class="filter-item">
+                                <i class="fa-solid fa-filter"></i>
+                                <select id="filterStatus">
+                                    <option value="">Все статусы</option>
+                                    <option value="present">На месте</option>
+                                    <option value="absent">Отсутствуют</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="sort-group">
+                            <i class="fa-solid fa-arrow-up-wide-short"></i>
+                            <select id="sortBy">
+                                <option value="name">По имени</option>
+                                <option value="position">По должности</option>
+                                <option value="time">По времени</option>
+                                <option value="status">По статусу</option>
+                            </select>
+                            <button class="sort-dir-btn" id="sortDirectionBtn" title="Изменить направление">
+                                <i class="fa-solid fa-arrow-up"></i>
+                            </button>
+                        </div>
+                        <div class="filter-actions">
+                            <button class="btn btn-outline btn-sm" id="resetFiltersBtn">
+                                <i class="fa-solid fa-rotate-left"></i> Сбросить
+                            </button>
+                            <span class="filter-count" id="filteredCount">Показано: 0</span>
+                        </div>
+                    </div>
+
+                    <!-- Quick Add -->
+                    <div class="quick-add-area">
+                        <div class="quick-add-wrapper">
+                            <i class="fa-solid fa-bolt"></i>
+                            <input type="text" id="quickAddInput" placeholder="🔍 Введите ФИО или телефон... Enter = добавить" />
+                            <span class="quick-hint">⌨️ Enter</span>
+                        </div>
+                        <div id="quickAddResults" class="quick-add-results"></div>
+                    </div>
+
+                    <!-- Add Button -->
+                    <div class="add-to-shift-bar">
+                        <button class="btn btn-primary btn-sm" id="openAddModalBtn">
+                            <i class="fa-solid fa-user-plus"></i> Добавить сотрудников
+                        </button>
+                        <span class="hint-text">Выберите из базы</span>
+                        <span class="shift-people-count" id="shiftPeopleCount">0 чел.</span>
+                    </div>
+
+                    <!-- Table -->
+                    <div class="table-wrap">
+                        <table class="shift-table">
+                            <thead>
+                                <tr>
+                                    <th class="sortable" data-sort="index">#</th>
+                                    <th class="sortable active asc" data-sort="name">ФИО <i class="fa-solid fa-sort"></i></th>
+                                    <th class="sortable" data-sort="position">Должность <i class="fa-solid fa-sort"></i></th>
+                                    <th>Телефон</th>
+                                    <th>Родственники</th>
+                                    <th class="sortable" data-sort="time">Время <i class="fa-solid fa-sort"></i></th>
+                                    <th class="sortable" data-sort="status">Статус <i class="fa-solid fa-sort"></i></th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="shiftBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="shift-actions-bottom">
+                        <button class="btn btn-success" id="exportExcelBtn">
+                            <i class="fa-solid fa-file-excel"></i> Excel
+                        </button>
+                        <button class="btn btn-outline" id="printShiftBtn">
+                            <i class="fa-solid fa-print"></i> Печать
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- EMERGENCY -->
+            <section id="tab-emergency" class="tab">
+                <div class="page-header">
+                    <div>
+                        <h1><i class="fa-solid fa-triangle-exclamation" style="color:var(--danger);"></i> Экстренный режим</h1>
+                        <p class="subtitle">Быстрый доступ к списку сотрудников смены</p>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="form-row-inline">
+                        <div class="form-group">
+                            <label>Выберите смену</label>
+                            <select id="emergencyShiftSelect"><option value="">-- Выберите --</option></select>
+                        </div>
+                        <button class="btn btn-danger" id="emergencyLoadBtn">
+                            <i class="fa-solid fa-eye"></i> Показать
+                        </button>
+                        <button class="btn btn-outline" id="emergencyPrintBtn">
+                            <i class="fa-solid fa-print"></i> Печать
+                        </button>
+                    </div>
+                </div>
+
+                <div class="panel" id="emergencyContent" style="display:none;">
+                    <div class="emergency-header">
+                        <h2 id="emergencyTitle">Смена</h2>
+                        <div class="emergency-stats">
+                            <span class="stat-badge total">Всего: <strong id="emergencyTotal">0</strong></span>
+                            <span class="stat-badge present">На месте: <strong id="emergencyPresent">0</strong></span>
+                            <span class="stat-badge absent">Отсутствуют: <strong id="emergencyAbsent">0</strong></span>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="shift-table emergency-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>ФИО</th>
+                                    <th>Должность</th>
+                                    <th>Телефон</th>
+                                    <th>Родственник</th>
+                                    <th>Телефон род.</th>
+                                    <th>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody id="emergencyBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- BACKUP -->
+            <section id="tab-backup" class="tab">
+                <div class="page-header">
+                    <div>
+                        <h1>Данные и резерв</h1>
+                        <p class="subtitle">Сохранение, восстановление и экспорт</p>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3><i class="fa-solid fa-download"></i> Скачать бэкап</h3>
+                    </div>
+                    <p class="hint-text">Сохраняет все данные в один JSON-файл</p>
+                    <button class="btn btn-success" id="backupDownloadBtn">
+                        <i class="fa-solid fa-download"></i> Скачать резервную копию
+                    </button>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3><i class="fa-solid fa-upload"></i> Восстановить из бэкапа</h3>
+                    </div>
+                    <p class="hint-text">Загрузите ранее сохранённый JSON-файл</p>
+                    <div class="upload-area">
+                        <input type="file" id="backupFileInput" accept=".json" />
+                        <button class="btn btn-primary" id="backupRestoreBtn">
+                            <i class="fa-solid fa-upload"></i> Восстановить
+                        </button>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3><i class="fa-solid fa-file-export"></i> Экспорт данных</h3>
+                    </div>
+                    <div class="export-buttons">
+                        <button class="btn btn-outline" id="exportCsvBtn">
+                            <i class="fa-solid fa-file-csv"></i> CSV
+                        </button>
+                        <button class="btn btn-outline" id="exportJsonBtn">
+                            <i class="fa-solid fa-file-code"></i> JSON
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- MODAL -->
+    <div class="modal" id="addModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-user-plus"></i> Добавить сотрудников</h2>
+                <button class="modal-close" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-search">
+                <div class="modal-search-row">
+                    <div class="modal-search-field">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="modalSearch" placeholder="Поиск по ФИО, телефону..." />
+                    </div>
+                    <div class="modal-filter-field">
+                        <select id="modalFilterPosition"><option value="">Все должности</option></select>
+                    </div>
+                </div>
+            </div>
+            <div id="modalList"></div>
+            <div class="modal-footer">
+                <span class="modal-count" id="modalCount">0 сотрудников</span>
+                <button class="btn btn-outline btn-sm" id="selectAllBtn">Выбрать всех</button>
+                <button class="btn btn-primary" id="addSelectedBtn">
+                    <i class="fa-solid fa-check"></i> Добавить выбранных
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCHEDULE CELL EDITOR MODAL -->
+    <!-- SCHEDULE PRO: SHIFT TYPES -->
+    <div class="modal" id="scheduleShiftsModal">
+        <div class="modal-content schedule-pro-modal-content">
+            <div class="modal-header">
+                <div>
+                    <h2><i class="fa-solid fa-business-time"></i> Настройка смен</h2>
+                    <div class="schedule-cell-modal-subtitle">Редактируйте код, название, время, оплачиваемые часы и цвет. Изменения применяются к графику месяца.</div>
+                </div>
+                <button class="modal-close" id="scheduleShiftsCloseModal">&times;</button>
+            </div>
+            <div id="scheduleShiftTypesList" class="schedule-shift-types-list"></div>
+            <div class="schedule-add-shift-box">
+                <h3>Добавить новую смену</h3>
+                <div class="schedule-shift-edit-grid">
+                    <div class="form-group"><label>Код</label><input id="newShiftCode" type="text" placeholder="11" /></div>
+                    <div class="form-group"><label>Название</label><input id="newShiftName" type="text" placeholder="Дневная" /></div>
+                    <div class="form-group"><label>С</label><input id="newShiftStart" type="time" value="08:00" /></div>
+                    <div class="form-group"><label>До</label><input id="newShiftEnd" type="time" value="20:00" /></div>
+                    <div class="form-group"><label>Оплач. часов</label><input id="newShiftPaidHours" type="number" min="0" step="0.5" value="11" /></div>
+                    <div class="form-group"><label>Цвет</label><input id="newShiftColor" type="color" value="#00B0F0" /></div>
+                </div>
+                <button class="btn btn-outline" id="scheduleAddShiftTypeBtn"><i class="fa-solid fa-plus"></i> Добавить смену</button>
+            </div>
+            <div class="schedule-cell-modal-footer">
+                <button class="btn btn-primary" id="scheduleSaveShiftTypesBtn"><i class="fa-solid fa-floppy-disk"></i> Сохранить изменения</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCHEDULE PRO: CYCLE -->
+    <div class="modal" id="scheduleCycleModal">
+        <div class="modal-content schedule-pro-modal-content compact">
+            <div class="modal-header"><h2><i class="fa-solid fa-repeat"></i> Автозаполнение по циклу</h2><button class="modal-close" id="scheduleCycleCloseModal">&times;</button></div>
+            <div class="schedule-pro-form-grid">
+                <div class="form-group"><label>Сотрудник</label><select id="scheduleCycleEmployee"></select></div>
+                <div class="form-group"><label>Смена</label><select id="scheduleCycleShift"></select></div>
+                <div class="form-group"><label>Рабочих дней подряд</label><input id="scheduleCycleWorkDays" type="number" min="1" max="14" value="3" /></div>
+                <div class="form-group"><label>Выходных подряд</label><input id="scheduleCycleOffDays" type="number" min="1" max="14" value="3" /></div>
+                <div class="form-group"><label>Начать цикл с числа</label><input id="scheduleCycleStartDay" type="number" min="1" max="31" value="1" /></div>
+                <div class="form-group"><label>Фаза на первом дне</label><select id="scheduleCyclePhase"><option value="work">Рабочий день</option><option value="off">Выходной</option></select></div>
+            </div>
+            <div class="schedule-cycle-presets">
+                <span>Быстрый цикл:</span>
+                <button type="button" class="btn btn-outline btn-sm" data-cycle="2,2">2/2</button>
+                <button type="button" class="btn btn-outline btn-sm" data-cycle="3,3">3/3</button>
+                <button type="button" class="btn btn-outline btn-sm" data-cycle="4,2">4/2</button>
+                <button type="button" class="btn btn-outline btn-sm" data-cycle="5,2">5/2</button>
+            </div>
+            <label class="schedule-check-row"><input type="checkbox" id="scheduleCycleOnlyEmpty" checked /> Заполнять только пустые ячейки</label>
+            <label class="schedule-check-row"><input type="checkbox" id="scheduleCycleSaveTemplate" checked /> Сохранить цикл как шаблон сотрудника</label>
+            <label class="schedule-check-row"><input type="checkbox" id="scheduleCycleWholePosition" /> Применить ко всем сотрудникам этой должности</label>
+            <div class="schedule-cell-modal-footer"><button class="btn btn-primary" id="scheduleCycleApplyBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> Заполнить месяц</button></div>
+        </div>
+    </div>
+
+    <!-- SCHEDULE PRO: ABSENCE RANGE -->
+    <div class="modal" id="scheduleAbsenceModal">
+        <div class="modal-content schedule-pro-modal-content compact">
+            <div class="modal-header"><h2><i class="fa-solid fa-calendar-minus"></i> Отсутствие диапазоном</h2><button class="modal-close" id="scheduleAbsenceCloseModal">&times;</button></div>
+            <div class="schedule-pro-form-grid">
+                <div class="form-group"><label>Сотрудник</label><select id="scheduleAbsenceEmployee"></select></div>
+                <div class="form-group"><label>Тип</label><select id="scheduleAbsenceType"></select></div>
+                <div class="form-group"><label>С числа</label><input id="scheduleAbsenceStartDay" type="number" min="1" max="31" value="1" /></div>
+                <div class="form-group"><label>По число</label><input id="scheduleAbsenceEndDay" type="number" min="1" max="31" value="1" /></div>
+            </div>
+            <div class="schedule-cell-modal-footer"><button class="btn btn-primary" id="scheduleAbsenceApplyBtn"><i class="fa-solid fa-check"></i> Применить</button></div>
+        </div>
+    </div>
+
+    <!-- SCHEDULE PRO: NORMS -->
+    <div class="modal" id="scheduleNormsModal">
+        <div class="modal-content schedule-pro-modal-content">
+            <div class="modal-header"><div><h2><i class="fa-solid fa-sliders"></i> Нормативы графика</h2><div class="schedule-cell-modal-subtitle">Настройки проверки, нормы часов и минимального количества сотрудников по должностям.</div></div><button class="modal-close" id="scheduleNormsCloseModal">&times;</button></div>
+            <div class="schedule-pro-form-grid schedule-norm-main-grid">
+                <div class="form-group"><label>Норма часов / месяц</label><input id="scheduleDefaultMonthlyHours" type="number" min="0" step="1" value="176" /></div>
+                <div class="form-group"><label>Снижение нормы за день ОТ/Б/ДО</label><input id="scheduleAbsenceReductionHours" type="number" min="0" step="0.5" value="11" /></div>
+                <div class="form-group"><label>Макс. смен подряд</label><input id="scheduleMaxConsecutive" type="number" min="1" max="14" value="4" /></div>
+                <div class="form-group"><label>Мин. выходных подряд</label><input id="scheduleMinOffBlock" type="number" min="1" max="14" value="2" /></div>
+                <div class="form-group"><label>Макс. выходных подряд</label><input id="scheduleMaxOffBlock" type="number" min="1" max="31" value="4" /></div>
+                <div class="form-group"><label>Допуск переработки, ч</label><input id="scheduleOvertimeTolerance" type="number" min="0" step="1" value="11" /></div>
+            </div>
+            <h3 class="schedule-pro-subtitle">Минимальное присутствие по должностям</h3>
+            <div id="schedulePositionNormsList" class="schedule-position-norms-list"></div>
+            <div class="schedule-cell-modal-footer"><button class="btn btn-primary" id="scheduleNormsSaveBtn"><i class="fa-solid fa-floppy-disk"></i> Сохранить нормативы</button></div>
+        </div>
+    </div>
+
+    <!-- SCHEDULE PRO: COPY MONTH -->
+    <div class="modal" id="scheduleCopyMonthModal">
+        <div class="modal-content schedule-pro-modal-content compact">
+            <div class="modal-header"><h2><i class="fa-solid fa-clone"></i> Копировать график в новый месяц</h2><button class="modal-close" id="scheduleCopyMonthCloseModal">&times;</button></div>
+            <div class="form-group"><label>Новый месяц</label><input type="month" id="scheduleCopyTargetMonth" /></div>
+            <label class="schedule-check-row"><input type="checkbox" id="scheduleCopyCells" checked /> Копировать заполненные ячейки по номерам дней</label>
+            <label class="schedule-check-row"><input type="checkbox" id="scheduleCopySettings" checked /> Копировать смены, цвета и нормативы</label>
+            <div class="schedule-cell-modal-footer"><button class="btn btn-primary" id="scheduleCopyMonthApplyBtn"><i class="fa-solid fa-copy"></i> Создать месяц</button></div>
+        </div>
+    </div>
+
+    <!-- SCHEDULE PRO: DAY DETAILS -->
+    <div class="modal" id="scheduleDayDetailsModal">
+        <div class="modal-content schedule-pro-modal-content schedule-day-details-content">
+            <div class="modal-header"><div><h2 id="scheduleDayDetailsTitle"><i class="fa-solid fa-calendar-day"></i> День</h2><div class="schedule-cell-modal-subtitle" id="scheduleDayDetailsSubtitle"></div></div><button class="modal-close" id="scheduleDayDetailsCloseModal">&times;</button></div>
+            <div id="scheduleDayDetailsContent"></div>
+        </div>
+    </div>
+
+    <div class="modal" id="scheduleColorsModal">
+        <div class="modal-content schedule-colors-modal-content">
+            <div class="modal-header">
+                <div>
+                    <h2><i class="fa-solid fa-palette"></i> Цвета смен и обозначений</h2>
+                    <div class="schedule-cell-modal-subtitle" id="scheduleColorsModalSubtitle">Настройте цвета для текущего открытого месяца</div>
+                </div>
+                <button class="modal-close" id="scheduleColorsCloseModal">&times;</button>
+            </div>
+
+            <div class="schedule-cell-editor-section">
+                <h3>Рабочие смены</h3>
+                <div id="scheduleColorsWorkList" class="schedule-color-editor-list"></div>
+            </div>
+
+            <div class="schedule-cell-editor-section">
+                <h3>Отсутствия и обозначения</h3>
+                <div id="scheduleColorsAbsenceList" class="schedule-color-editor-list"></div>
+            </div>
+
+            <div class="schedule-cell-modal-footer schedule-colors-footer">
+                <button class="btn btn-outline" id="scheduleColorsResetBtn">
+                    <i class="fa-solid fa-rotate-left"></i> Сбросить цвета
+                </button>
+                <button class="btn btn-primary" id="scheduleColorsApplyBtn">
+                    <i class="fa-solid fa-check"></i> Применить
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="scheduleCellModal">
+        <div class="modal-content schedule-cell-modal-content">
+            <div class="modal-header">
+                <div>
+                    <h2><i class="fa-solid fa-pen-to-square"></i> Редактирование графика</h2>
+                    <div class="schedule-cell-modal-subtitle" id="scheduleCellModalSubtitle"></div>
+                </div>
+                <button class="modal-close" id="scheduleCellCloseModal">&times;</button>
+            </div>
+
+            <div class="schedule-cell-editor-section">
+                <h3>Рабочая смена</h3>
+                <p class="hint-text">Сначала показываются смены, настроенные для должности сотрудника.</p>
+                <div class="schedule-cell-options" id="scheduleCellWorkOptions"></div>
+            </div>
+
+            <div class="schedule-cell-editor-section">
+                <h3>Свое время</h3>
+                <div class="schedule-custom-time-row">
+                    <div class="form-group">
+                        <label>С</label>
+                        <input type="time" id="scheduleCustomStart" value="08:00" />
+                    </div>
+                    <div class="form-group">
+                        <label>До</label>
+                        <input type="time" id="scheduleCustomEnd" value="20:00" />
+                    </div>
+                    <button class="btn btn-primary" id="scheduleCustomApplyBtn">
+                        <i class="fa-solid fa-check"></i> Применить
+                    </button>
+                </div>
+            </div>
+
+            <div class="schedule-cell-editor-section">
+                <h3>Отсутствие / обозначение</h3>
+                <div class="schedule-cell-options absence" id="scheduleCellAbsenceOptions"></div>
+            </div>
+
+            <div class="schedule-cell-editor-section">
+                <h3>Комментарий к ячейке</h3>
+                <textarea id="scheduleCellComment" class="schedule-cell-comment" rows="3" placeholder="Например: замена сотрудника, согласовано с руководителем…"></textarea>
+                <button class="btn btn-outline btn-sm schedule-comment-save" id="scheduleCellCommentSaveBtn"><i class="fa-solid fa-message"></i> Сохранить комментарий</button>
+            </div>
+
+            <div class="schedule-cell-modal-footer">
+                <button class="btn btn-outline" id="scheduleCellClearBtn">
+                    <i class="fa-solid fa-eraser"></i> Очистить выбранное
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div class="toast" id="toast"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
