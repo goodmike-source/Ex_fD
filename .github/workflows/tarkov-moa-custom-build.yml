@@ -118,7 +118,7 @@ jobs:
 
           $cfg = Get-Content 'src-tauri/tauri.conf.json' -Raw | ConvertFrom-Json
           $cfg.productName = 'Tarkov MoA Custom'
-          $cfg.version = '0.9.2'
+          $cfg.version = '0.9.3'
           $cfg.identifier = 'com.tarkov-moa.custom'
           $cfg.app.windows[0].title = 'Tarkov MoA Custom'
           $cfg.bundle.createUpdaterArtifacts = $false
@@ -127,14 +127,73 @@ jobs:
           $cfg | ConvertTo-Json -Depth 20 | Set-Content 'src-tauri/tauri.conf.json' -Encoding utf8
 
           $cargo = Get-Content 'src-tauri/Cargo.toml' -Raw
-          $cargo = $cargo.Replace('version = "0.8.1"', 'version = "0.9.2"')
+          $cargo = $cargo.Replace('version = "0.8.1"', 'version = "0.9.3"')
           Set-Content 'src-tauri/Cargo.toml' -Value $cargo -Encoding utf8
+
+
+      - name: Bundle original SVG maps for offline operation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $upstreamCommit = '5a8b6115d1c0cf56f2ebaac1a96fa5ae3074d178'
+          $baseUrl = "https://raw.githubusercontent.com/the-hideout/tarkov-dev-svg-maps/$upstreamCommit"
+          $names = @(
+            'Customs', 'Factory', 'GroundZero', 'Interchange', 'Labs',
+            'Lighthouse', 'Reserve', 'Shoreline', 'StreetsOfTarkov',
+            'Terminal', 'Woods'
+          )
+          New-Item -ItemType Directory -Path 'public/maps' -Force | Out-Null
+          foreach ($name in $names) {
+            $target = "public/maps/$name.svg"
+            Invoke-WebRequest -Uri "$baseUrl/$name.svg" -OutFile $target
+            if ((Get-Item $target).Length -lt 10000) { throw "Offline map $name.svg appears incomplete" }
+            try {
+              $xml = [xml](Get-Content $target -Raw)
+              if ($xml.DocumentElement.LocalName -ne 'svg') { throw "Not an SVG" }
+            } catch { throw "Invalid downloaded SVG $name.svg : $_" }
+            Write-Host "$name.svg bundled, $((Get-Item $target).Length) bytes"
+          }
+          Invoke-WebRequest -Uri "$baseUrl/LICENSE.md" -OutFile 'public/maps/LICENSE.md'
+          @"
+          Bundled map illustrations from the-hideout/tarkov-dev-svg-maps
+          Upstream commit: $upstreamCommit
+          License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+          Source: https://github.com/the-hideout/tarkov-dev-svg-maps
+          Copyright belongs to the respective authors; illustrations are unmodified.
+          See LICENSE.md for details.
+          "@ | Set-Content -Path 'public/maps/ATTRIBUTION.txt' -Encoding utf8
+          $definitions = Get-Content 'src/map/mapDefs.ts' -Raw
+          $remotePrefix = 'https://assets.tarkov.dev/maps/svg/'
+          $count = ([regex]::Matches($definitions, [regex]::Escape($remotePrefix))).Count
+          if ($count -ne 11) { throw "Expected 11 remote map URLs, found $count" }
+          $definitions = $definitions.Replace($remotePrefix, '/maps/')
+          Set-Content 'src/map/mapDefs.ts' -Value $definitions -Encoding utf8
+          if ($definitions.Contains($remotePrefix)) { throw "Remote map URLs still present" }
 
       - name: Install frontend dependencies
         run: npm ci
 
       - name: Build Windows installer
         run: npm run tauri:build
+
+      - name: Verify bundled maps in production output
+        shell: pwsh
+        run: |
+          $names = @(
+            'Customs', 'Factory', 'GroundZero', 'Interchange', 'Labs',
+            'Lighthouse', 'Reserve', 'Shoreline', 'StreetsOfTarkov',
+            'Terminal', 'Woods'
+          )
+          foreach ($name in $names) {
+            $target = "dist/maps/$name.svg"
+            if (!(Test-Path $target)) { throw "Missing production map asset: $target" }
+            if ((Get-Item $target).Length -lt 10000) { throw "Incomplete production map asset: $target" }
+          }
+          $bundle = Get-ChildItem -Path dist/assets -Filter '*.js' | Get-Content -Raw
+          if ($bundle -match 'https://assets.tarkov.dev/maps/svg/') {
+            throw "Production JS still references remote SVG maps"
+          }
+          Write-Host 'PASS: all 11 map assets embedded in production build. No external map SVG URLs.'
 
       - name: Smoke-test Windows executable
         shell: pwsh
@@ -156,6 +215,6 @@ jobs:
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: Tarkov-MoA-Custom-0.9.2-Windows
+          name: Tarkov-MoA-Custom-0.9.3-OfflineMaps-Windows
           path: src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
