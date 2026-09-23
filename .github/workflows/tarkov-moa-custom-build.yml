@@ -1,0 +1,139 @@
+name: Build Tarkov MoA Custom
+
+on:
+  push:
+    branches:
+      - tarkov-moa-custom-build
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Tarkov MoA 0.9.0
+        uses: actions/checkout@v4
+        with:
+          repository: mopocop/Tarkov-moa
+          ref: v0.9.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Apply custom patch
+        shell: pwsh
+        run: |
+          @'
+          import type { DrawPayload } from '../../shared/squadProtocol';
+
+          const STORAGE_KEY = 'tc_draws_v1';
+          const MAX_STORED_STROKES = 300;
+
+          function isPoint(value: unknown): value is { x: number; z: number } {
+            if (!value || typeof value !== 'object') return false;
+            const p = value as { x?: unknown; z?: unknown };
+            return typeof p.x === 'number' && Number.isFinite(p.x) && typeof p.z === 'number' && Number.isFinite(p.z);
+          }
+
+          function isDrawPayload(value: unknown): value is DrawPayload {
+            if (!value || typeof value !== 'object') return false;
+            const d = value as Partial<DrawPayload>;
+            return (
+              typeof d.id === 'string' &&
+              typeof d.mapId === 'string' &&
+              typeof d.color === 'string' &&
+              Array.isArray(d.points) &&
+              d.points.length >= 2 &&
+              d.points.every(isPoint)
+            );
+          }
+
+          export function loadOwnDraws(): DrawPayload[] {
+            try {
+              const raw = localStorage.getItem(STORAGE_KEY);
+              if (!raw) return [];
+              const parsed = JSON.parse(raw) as unknown;
+              if (!Array.isArray(parsed)) return [];
+              return parsed.filter(isDrawPayload).slice(-MAX_STORED_STROKES);
+            } catch {
+              return [];
+            }
+          }
+
+          export function saveOwnDraws(draws: DrawPayload[]): void {
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(draws.slice(-MAX_STORED_STROKES)));
+            } catch {
+              // Drawing continues to work even if local storage is unavailable.
+            }
+          }
+          '@ | Set-Content -Path 'src/map/drawStore.ts' -Encoding utf8
+
+          $app = Get-Content 'src/App.tsx' -Raw
+          $app = $app.Replace(
+            "import { newDrawId } from './map/drawId';",
+            "import { newDrawId } from './map/drawId';`nimport { loadOwnDraws, saveOwnDraws } from './map/drawStore';"
+          )
+          $app = $app.Replace(
+            "const [ownDraws, setOwnDraws] = useState<DrawPayload[]>([]); // in-memory, session-only",
+            "const [ownDraws, setOwnDraws] = useState<DrawPayload[]>(() => loadOwnDraws());"
+          )
+          $anchor = @'
+            // Persist custom markers whenever they change.
+            useEffect(() => {
+              saveCustomPois(customPois);
+            }, [customPois]);
+          '@
+          $replacement = @'
+            // Persist custom markers whenever they change.
+            useEffect(() => {
+              saveCustomPois(customPois);
+            }, [customPois]);
+
+            // Keep locally-authored routes and notes across app restarts.
+            useEffect(() => {
+              saveOwnDraws(ownDraws);
+            }, [ownDraws]);
+          '@
+          if (-not $app.Contains($anchor)) { throw 'App.tsx persistence anchor not found' }
+          $app = $app.Replace($anchor, $replacement)
+          Set-Content -Path 'src/App.tsx' -Value $app -Encoding utf8
+
+          $cfg = Get-Content 'src-tauri/tauri.conf.json' -Raw | ConvertFrom-Json
+          $cfg.productName = 'Tarkov MoA Custom'
+          $cfg.version = '0.9.1'
+          $cfg.identifier = 'com.tarkov-moa.custom'
+          $cfg.app.windows[0].title = 'Tarkov MoA Custom'
+          $cfg.bundle.createUpdaterArtifacts = $false
+          $cfg.bundle.publisher = 'Tarkov MoA Custom'
+          $cfg.PSObject.Properties.Remove('plugins')
+          $cfg | ConvertTo-Json -Depth 20 | Set-Content 'src-tauri/tauri.conf.json' -Encoding utf8
+
+          $cargo = Get-Content 'src-tauri/Cargo.toml' -Raw
+          $cargo = $cargo.Replace('version = "0.8.1"', 'version = "0.9.1"')
+          Set-Content 'src-tauri/Cargo.toml' -Value $cargo -Encoding utf8
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build Windows installer
+        run: npm run tauri:build
+
+      - name: Show installer
+        shell: pwsh
+        run: Get-ChildItem -Path 'src-tauri/target/release/bundle/nsis' -Filter '*.exe'
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tarkov-MoA-Custom-0.9.1-Windows
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
