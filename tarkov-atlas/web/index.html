@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ru"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101419">
+  <title>Tarkov Atlas — Tactical Desktop Companion</title>
+  <link rel="stylesheet" href="./style.css">
+</head><body>
+<div id="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><span>⌖</span></div>
+      <div><div class="brand-name">TARKOV <b>ATLAS</b></div><small>OFFLINE TACTICAL SYSTEM · v0.1</small></div>
+    </div>
+    <div class="side-label">КОМАНДНЫЙ ЦЕНТР</div>
+    <nav class="nav" aria-label="Разделы">
+      <button data-page="overview" class="nav-btn active"><span>◈</span> Обзор <i id="overviewHint">●</i></button>
+      <button data-page="maps" class="nav-btn"><span>◎</span> Карты <i>11</i></button>
+      <button data-page="quests" class="nav-btn"><span>☑</span> Задания <i id="questNum">—</i></button>
+      <button data-page="items" class="nav-btn"><span>▤</span> Список предметов</button>
+      <button data-page="hideout" class="nav-btn"><span>⌂</span> Убежище</button>
+      <button data-page="settings" class="nav-btn"><span>⚙</span> Настройки</button>
+    </nav>
+    <div class="side-bottom">
+      <div class="status-line"><span class="status-dot"></span> КАРТЫ ХРАНЯТСЯ ЛОКАЛЬНО</div>
+      <div id="shotIndicator" class="substatus">GPS: не настроен</div>
+      <div class="rail-foot">Независимый фанатский проект.<br>Не связан с Battlestate Games.</div>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div><div class="eyebrow" id="breadcrumb">ОБЗОР / КОМАНДНЫЙ ЦЕНТР</div><h1 id="pageTitle">Планируй рейд. Контролируй прогресс.</h1></div>
+      <div class="top-actions">
+        <span class="pill">РЕЖИМ <b>OFFLINE</b></span>
+        <button class="secondary" id="exportQuick" title="Сохранить резервную копию">⤓ Экспорт</button>
+        <span class="avatar">TA</span>
+      </div>
+    </header>
+
+    <section id="page-overview" class="page active">
+      <div class="hero">
+        <div>
+          <div class="eyebrow accent">ПОЛЕВОЙ СПРАВОЧНИК · БЕЗ СЕРВЕРНОЙ ЗАВИСИМОСТИ</div>
+          <h2>Всё для следующего рейда.<br><em>В одной программе.</em></h2>
+          <p>Локальные карты, задания, личные маршруты и GPS по скриншотам. Твой прогресс сохраняется на компьютере.</p>
+          <div class="hero-actions"><button class="primary" data-go="maps">Открыть карты →</button><button class="secondary" data-go="quests">Мои задания</button></div>
+        </div>
+        <div class="hero-graphic"><span>◎</span><div class="hero-grid"></div><div class="hero-label">FIELD OPERATIONS<br><strong>TACTICAL ATLAS</strong></div></div>
+      </div>
+      <div class="stats">
+        <div class="stat"><small>ДОСТУПНО КАРТ</small><strong>11</strong><span>Сохранены в установщике</span></div>
+        <div class="stat"><small>ЗАДАНИЙ В АРХИВЕ</small><strong id="statQuests">—</strong><span id="archiveDate">Снимок данных</span></div>
+        <div class="stat"><small>ЗАДАНИЙ ВЫПОЛНЕНО</small><strong id="statDone">0</strong><span>Локальный прогресс</span></div>
+        <div class="stat"><small>МОИХ МЕТОК</small><strong id="statPins">0</strong><span>Задачи и маршруты</span></div>
+      </div>
+      <div class="grid-two">
+        <div class="panel"><div class="panel-heading"><div><div class="eyebrow">БЫСТРЫЙ СТАРТ</div><h3>Выбери локацию</h3></div><button class="text-action" data-go="maps">Все карты ↗</button></div><div id="quickMaps" class="quick-maps"></div></div>
+        <div class="panel"><div class="panel-heading"><div><div class="eyebrow">СОСТОЯНИЕ ПРОГРАММЫ</div><h3>Готовность к рейду</h3></div></div>
+          <div class="health"><span class="health-icon good">✓</span><div><b>11 карт доступны без интернета</b><small>Локальные SVG — без зависимости от внешних CDN</small></div></div>
+          <div class="health"><span class="health-icon good">✓</span><div><b>Личный прогресс сохранён</b><small>Задания, предметы, пометки, модули убежища</small></div></div>
+          <div class="health"><span class="health-icon" id="gpsHealthIcon">○</span><div><b>GPS по скриншотам</b><small id="gpsHealthText">Настрой путь к папке EFT в разделе «Настройки»</small></div></div>
+          <div class="snapshot-note" id="overviewSource">Архив заданий загружается с диска…</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="page-maps" class="page map-page">
+      <div class="map-topline">
+        <label class="select-label">ЛОКАЦИЯ <select id="mapSelect"></select></label>
+        <div class="map-tools" role="group" aria-label="Инструменты карты">
+          <button data-tool="move" class="tool selected" title="Перемещение карты">✥ Перемещение</button>
+          <button data-tool="pin" class="tool" title="Поставить свою метку">⌖ Метка</button>
+          <button data-tool="route" class="tool" title="Рисовать маршрут точками">⌁ Маршрут</button>
+          <button id="undoRoute" class="tool" title="Удалить последнюю точку">↶</button>
+          <button id="clearRoute" class="tool danger" title="Очистить маршрут">✕</button>
+        </div>
+        <button class="secondary compact" id="resetZoom">⊡ Сбросить вид</button>
+      </div>
+      <div class="map-layout">
+        <div class="map-center">
+          <div id="mapViewport" class="map-viewport" tabindex="0" aria-label="Интерактивная карта">
+            <div id="mapScene" class="map-scene">
+              <img id="mapImage" src="" alt="Карта локации" draggable="false">
+              <svg id="mapOverlay" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"></svg>
+            </div>
+            <div class="map-watermark">TARKOV ATLAS <b>⌖</b> <span id="mapCurrentName">—</span></div>
+            <div class="map-hint" id="mapHint">Колесо — масштаб · перетаскивание — перемещение</div>
+            <div class="map-zoom"><button id="zoomIn">+</button><span id="zoomValue">100%</span><button id="zoomOut">−</button></div>
+            <div class="map-legend"><span><b class="legend-quest"></b> Задание</span><span><b class="legend-pin"></b> Моя метка</span><span><b class="legend-gps"></b> Я</span></div>
+          </div>
+          <div class="map-footer"><span id="coordsText">Наведите курсор на карту</span><span id="mapLoaded">Карты работают без интернета</span></div>
+        </div>
+        <aside class="map-panel">
+          <div class="panel-title">СЛОИ И ФИЛЬТРЫ</div>
+          <label class="toggle-row"><input id="layerQuests" type="checkbox" checked><span class="toggle-ui"></span><span>Цели заданий</span><b id="mapQuestCount">0</b></label>
+          <label class="toggle-row"><input id="layerPins" type="checkbox" checked><span class="toggle-ui"></span><span>Мои метки</span><b id="mapPinCount">0</b></label>
+          <label class="toggle-row"><input id="layerRoutes" type="checkbox" checked><span class="toggle-ui"></span><span>Маршрут</span></label>
+          <label class="toggle-row"><input id="layerGPS" type="checkbox" checked><span class="toggle-ui"></span><span>Позиция игрока</span></label>
+          <div class="panel-title margin-top">ЗАДАНИЯ НА ЛОКАЦИИ</div>
+          <label class="filter-input"><span>⌕</span><input id="mapQuestSearch" placeholder="Найти задание…" autocomplete="off"></label>
+          <div id="mapQuestList" class="map-quest-list"></div>
+          <div class="panel-title margin-top">МОИ МЕТКИ</div>
+          <div id="mapPinsList" class="map-pins-list"></div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="page-quests" class="page">
+      <div class="section-heading"><div><div class="eyebrow">КВЕСТОВЫЙ ЖУРНАЛ</div><h2>Задания и прогресс</h2><p>Завершённые задания сохраняются локально. Щелчок по заданию откроет его цели на карте.</p></div><span class="count-pill" id="questSummary">—</span></div>
+      <div class="filters">
+        <label class="filter-input grow"><span>⌕</span><input id="questSearch" placeholder="Поиск по названию, описанию, торговцу…" autocomplete="off"></label>
+        <select id="questTraderFilter"><option value="">Все торговцы</option></select>
+        <select id="questMapFilter"><option value="">Все карты</option></select>
+        <select id="questStateFilter"><option value="all">Все задания</option><option value="active">Не выполнены</option><option value="completed">Выполнены</option><option value="kappa">Для Каппы</option></select>
+      </div>
+      <div id="questCards" class="quest-grid"></div>
+      <div class="list-footer"><button class="secondary" id="moreQuests">Показать ещё</button></div>
+    </section>
+
+    <section id="page-items" class="page">
+      <div class="section-heading"><div><div class="eyebrow">ЛИЧНЫЙ СПИСОК ДЛЯ РЕЙДА</div><h2>Предметы, которые нужно найти</h2><p>Добавляй предметы и отслеживай, сколько ещё требуется. Это личный чек-лист, не биржа с онлайн-ценами.</p></div><span class="count-pill" id="itemSummary">0 записей</span></div>
+      <form id="itemForm" class="add-form">
+        <input id="itemName" maxlength="110" required placeholder="Название предмета, например: Видеокарта">
+        <input id="itemNeed" type="number" min="1" max="999" value="1" title="Сколько нужно" aria-label="Нужно штук">
+        <select id="itemCategory"><option value="Задание">Для задания</option><option value="Убежище">Для убежища</option><option value="Другое">Другое</option></select>
+        <button class="primary" type="submit">+ Добавить</button>
+      </form>
+      <div id="itemList" class="item-list"></div>
+    </section>
+
+    <section id="page-hideout" class="page">
+      <div class="section-heading"><div><div class="eyebrow">ПЛАН РАЗВИТИЯ</div><h2>Моё убежище</h2><p>Отмечай построенные уровни модулей. Требования к строительству здесь не рассчитываются.</p></div><span class="count-pill" id="hideoutSummary">0 / 0 уровней</span></div>
+      <div id="hideoutGrid" class="hideout-grid"></div>
+    </section>
+
+    <section id="page-settings" class="page">
+      <div class="section-heading"><div><div class="eyebrow">ЛОКАЛЬНЫЕ НАСТРОЙКИ</div><h2>Управление программой</h2></div></div>
+      <div class="settings-list">
+        <div class="setting"><div><h3>GPS по скриншотам</h3><p>Программа читает координаты из имени PNG в папке Escape from Tarkov. Скриншоты остаются нетронутыми; файлы игры не изменяются.</p><code id="shotFolder">Папка не выбрана</code><p id="shotStatus" class="substatus">Автоматическая проверка при открытой программе.</p></div><button class="primary" id="chooseFolder">Выбрать папку</button></div>
+        <div class="setting"><div><h3>Резервная копия прогресса</h3><p>Все выполненные задания, маршруты, метки, предметы и модули убежища сохраняются на компьютере. Можно создать резервный JSON-файл.</p></div><div class="setting-buttons"><button class="secondary" id="importProfile">Импорт</button><button class="primary" id="exportProfile">Экспорт</button></div></div>
+        <div class="setting"><div><h3>О квестовом архиве</h3><p id="snapshotAbout">Русскоязычные данные снимка.</p><p>Содержимое меняется с патчами игры и не обновляется автоматически. Онлайн-цены, торговля и все этажные карты пока не включены.</p></div></div>
+        <div class="setting"><div><h3>Источники и лицензии</h3><p>Открытые SVG-карты: the-hideout/tarkov-dev-svg-maps, CC BY-NC-SA 4.0. Архив квестов: Tarkov MoA (MIT; данные tarkov.dev). Это самостоятельная программа и не копия дизайна или материалов TarkovHead.</p><small>Файлы LICENSE и ATTRIBUTION входят в установщик.</small></div></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="pinDialog" class="dialog hidden"><div class="dialog-card"><div class="eyebrow">СВОЯ МЕТКА</div><h3>Отметить место</h3><label>Название<input id="pinName" maxlength="80" placeholder="Например: безопасный проход"></label><label>Примечание<input id="pinNote" maxlength="200" placeholder="Необязательно"></label><div class="dialog-actions"><button class="secondary" id="pinCancel">Отмена</button><button class="primary" id="pinSave">Сохранить метку</button></div></div></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="./app.js"></script>
+</body></html>
